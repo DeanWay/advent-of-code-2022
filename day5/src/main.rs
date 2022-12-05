@@ -1,11 +1,13 @@
 use std::{collections::VecDeque, io::stdin};
 
+use anyhow::{Error, Result};
 use regex::Regex;
 
-fn main() {
-    let input = parse_input();
+fn main() -> Result<()> {
+    let input = parse_input()?;
     println!("{:?}", solution_1(&input));
     println!("{:?}", solution_2(&input));
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -21,17 +23,20 @@ struct Move {
     to: usize,
 }
 
-fn parse_input() -> Input {
+fn parse_input() -> Result<Input> {
     let mut lines = stdin().lines().map(|line| line.unwrap());
     let stack_lines: Vec<String> = lines.by_ref().take_while(|line| !line.is_empty()).collect();
     let move_lines: Vec<String> = lines.collect();
-    let stacks = parse_stacks(stack_lines);
-    let moves = parse_moves(move_lines);
-    Input { stacks, moves }
+    let stacks = parse_stacks(stack_lines)?;
+    let moves = parse_moves(move_lines)?;
+    Ok(Input { stacks, moves })
 }
 
-fn parse_stacks(lines: Vec<String>) -> Vec<VecDeque<char>> {
-    let last = lines.last().unwrap();
+fn parse_stacks(lines: Vec<String>) -> Result<Vec<VecDeque<char>>> {
+    let last = lines
+        .last()
+        .ok_or(Error::msg("stack lines cannot be emtpy"))?;
+
     let mut result = Vec::new();
     for (i, char) in last.chars().enumerate() {
         if !char.is_whitespace() {
@@ -45,20 +50,22 @@ fn parse_stacks(lines: Vec<String>) -> Vec<VecDeque<char>> {
             result.push(stack);
         }
     }
-    result
+    Ok(result)
 }
 
-fn parse_moves(lines: Vec<String>) -> Vec<Move> {
-    let re = Regex::new(r"move (\d+) from (\d+) to (\d+)").unwrap();
+fn parse_moves(lines: Vec<String>) -> Result<Vec<Move>> {
+    let re = Regex::new(r"move (\d+) from (\d+) to (\d+)")?;
     lines
         .iter()
         .map(|line| {
-            let captures = re.captures(&line).unwrap();
-            Move {
-                amount: captures[1].parse().unwrap(),
-                from: (captures[2].parse::<usize>().unwrap() - 1),
-                to: (captures[3].parse::<usize>().unwrap() - 1),
-            }
+            let captures = re
+                .captures(&line)
+                .ok_or(Error::msg(format!("invalid move line: {}", line)))?;
+            Ok(Move {
+                amount: captures[1].parse()?,
+                from: (captures[2].parse::<usize>()? - 1),
+                to: (captures[3].parse::<usize>()? - 1),
+            })
         })
         .collect()
 }
