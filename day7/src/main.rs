@@ -17,6 +17,7 @@ fn main() {
 struct Directory {
     name: String,
     files: Vec<File>,
+    parent: Option<Rc<RefCell<Directory>>>,
     subdirectories: Vec<Rc<RefCell<Directory>>>,
 }
 
@@ -132,44 +133,114 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
     let _first_cd = lines.next();
     let top_level_dir = Rc::new(RefCell::new(Directory {
         name: "/".to_owned(),
+        parent: None,
         files: vec![],
         subdirectories: vec![],
     }));
-    let mut cwd = vec![top_level_dir.clone()];
+    let mut current = Some(top_level_dir.clone());
     for line in lines {
         match line {
             LineToken::CDOut => {
-                cwd.pop();
+                match current.take() {
+                    None => panic!(),
+                    Some(curr) => {
+                        current = curr.borrow().parent.clone();
+                    }
+                };
             }
             LineToken::CD(dirname) => {
-                let current: Rc<RefCell<Directory>> = cwd.last().unwrap().clone();
-                let c = current.borrow();
-                let new_curr = c
-                    .subdirectories
-                    .iter()
-                    .find(|dir| dir.borrow().name == *dirname)
-                    .unwrap();
-                cwd.push(new_curr.clone())
+                match current.take() {
+                    None => panic!(),
+                    Some(curr) => {
+                        let current_borrow = curr.borrow();
+                        let new_curr = current_borrow
+                            .subdirectories
+                            .iter()
+                            .find(|dir| dir.borrow().name == *dirname)
+                            .unwrap()
+                            .clone();
+                        current = Some(new_curr)
+                    }
+                };
             }
             LineToken::LS => {}
             LineToken::File { name, size } => {
-                cwd.last().unwrap().borrow_mut().files.push(File {
-                    name: name.clone(),
-                    size: *size,
-                });
+                match &mut current {
+                    None => panic!(),
+                    Some(curr) => {
+                        curr.borrow_mut().files.push(File {
+                            name: name.clone(),
+                            size: *size,
+                        });
+                    }
+                };
             }
             LineToken::Dir { name } => {
-                cwd.last()
-                    .unwrap()
-                    .borrow_mut()
-                    .subdirectories
-                    .push(Rc::new(RefCell::new(Directory {
-                        name: name.clone(),
-                        files: vec![],
-                        subdirectories: vec![],
-                    })));
+                match &mut current {
+                    None => panic!(),
+                    Some(curr) => {
+                        curr.borrow_mut()
+                            .subdirectories
+                            .push(Rc::new(RefCell::new(Directory {
+                                name: name.clone(),
+                                parent: Some(curr.clone()),
+                                files: vec![],
+                                subdirectories: vec![],
+                            })));
+                    }
+                };
             }
         };
     }
     top_level_dir.to_owned()
+}
+
+#[test]
+fn test_parse_filesystem() {
+    let lines = vec![
+        LineToken::CD("/".to_owned()),
+        LineToken::LS,
+        LineToken::Dir {
+            name: "a".to_owned(),
+        },
+        LineToken::File {
+            size: 14848514,
+            name: "b.txt".to_owned(),
+        },
+        LineToken::Dir {
+            name: "d".to_owned(),
+        },
+        LineToken::CD("a".to_owned()),
+        LineToken::LS,
+        LineToken::Dir {
+            name: "e".to_owned(),
+        },
+        LineToken::File {
+            size: 29116,
+            name: "f".to_owned(),
+        },
+        LineToken::File {
+            size: 2557,
+            name: "g".to_owned(),
+        },
+        LineToken::File {
+            size: 62596,
+            name: "h.lst".to_owned(),
+        },
+    ];
+    let result = parse_filesystem(&lines);
+    {
+        let top_dir = result.borrow();
+        assert_eq!(top_dir.name, "/".to_owned());
+        let a = &top_dir.subdirectories[0];
+        let b = &top_dir.subdirectories[1];
+    }
+}
+
+#[test]
+fn test_parse_example_input() {
+    let input = include_str!("../example.txt");
+    let lines = parse_input(input.as_bytes() as &[u8]);
+    let result = parse_filesystem(&lines);
+    assert_eq!(1, 1)
 }
