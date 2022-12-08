@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::rc::Weak;
 use std::{
     io::{stdin, BufRead},
     rc::Rc,
@@ -17,7 +18,7 @@ fn main() {
 struct Directory {
     name: String,
     files: Vec<File>,
-    parent: Option<Rc<RefCell<Directory>>>,
+    parent: Option<Weak<RefCell<Directory>>>,
     subdirectories: Vec<Rc<RefCell<Directory>>>,
 }
 
@@ -137,13 +138,14 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
         files: vec![],
         subdirectories: vec![],
     }));
-    let mut current = Some(top_level_dir.clone());
+    let mut current = Some(Rc::downgrade(&top_level_dir));
     for line in lines {
         match line {
             LineToken::CDOut => {
                 match current.take() {
                     None => panic!(),
                     Some(curr) => {
+                        let curr = curr.upgrade().unwrap();
                         current = curr.borrow().parent.clone();
                     }
                 };
@@ -152,6 +154,7 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
                 match current.take() {
                     None => panic!(),
                     Some(curr) => {
+                        let curr = curr.upgrade().unwrap();
                         let current_borrow = curr.borrow();
                         let new_curr = current_borrow
                             .subdirectories
@@ -159,7 +162,7 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
                             .find(|dir| dir.borrow().name == *dirname)
                             .unwrap()
                             .clone();
-                        current = Some(new_curr)
+                        current = Some(Rc::downgrade(&new_curr))
                     }
                 };
             }
@@ -168,7 +171,7 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
                 match &mut current {
                     None => panic!(),
                     Some(curr) => {
-                        curr.borrow_mut().files.push(File {
+                        curr.upgrade().unwrap().borrow_mut().files.push(File {
                             name: name.clone(),
                             size: *size,
                         });
@@ -179,7 +182,9 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
                 match &mut current {
                     None => panic!(),
                     Some(curr) => {
-                        curr.borrow_mut()
+                        curr.upgrade()
+                            .unwrap()
+                            .borrow_mut()
                             .subdirectories
                             .push(Rc::new(RefCell::new(Directory {
                                 name: name.clone(),
