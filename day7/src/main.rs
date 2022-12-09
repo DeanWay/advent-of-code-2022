@@ -43,7 +43,7 @@ fn parse_input(input: impl BufRead) -> Vec<LineToken> {
         .lines()
         .map(|line| line.unwrap())
         .map(
-            |line| match line.split(" ").collect::<Vec<&str>>().as_slice() {
+            |line| match line.split(' ').collect::<Vec<&str>>().as_slice() {
                 ["$", "ls"] => LineToken::LS,
                 ["$", "cd", ".."] => LineToken::CDOut,
                 ["$", "cd", dirname] => LineToken::CD(dirname.to_string()),
@@ -60,7 +60,7 @@ fn parse_input(input: impl BufRead) -> Vec<LineToken> {
         .collect()
 }
 
-fn solution_1(input: &Vec<LineToken>) -> usize {
+fn solution_1(input: &[LineToken]) -> usize {
     let top_dir = parse_filesystem(input);
     let iter = DirectoryIterator::new(top_dir);
     iter.map(|item| item.borrow().size())
@@ -68,7 +68,7 @@ fn solution_1(input: &Vec<LineToken>) -> usize {
         .sum()
 }
 
-fn solution_2(input: &Vec<LineToken>) -> Option<usize> {
+fn solution_2(input: &[LineToken]) -> Option<usize> {
     let top_dir = parse_filesystem(input);
     let iter = DirectoryIterator::new(top_dir);
     let total_space: usize = 70000000;
@@ -82,7 +82,7 @@ fn solution_2(input: &Vec<LineToken>) -> Option<usize> {
         .iter()
         .find(|size| {
             total_space
-                .checked_sub(space_used.checked_sub(**size).unwrap_or(0))
+                .checked_sub(space_used.saturating_sub(**size))
                 .map(|space_left| space_left >= needed_space)
                 .unwrap_or(false)
         })
@@ -129,7 +129,7 @@ impl Iterator for DirectoryIterator {
     }
 }
 
-fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
+fn parse_filesystem(input: &[LineToken]) -> Rc<RefCell<Directory>> {
     let mut lines = input.iter();
     let _first_cd = lines.next();
     let top_level_dir = Rc::new(RefCell::new(Directory {
@@ -197,7 +197,7 @@ fn parse_filesystem(input: &Vec<LineToken>) -> Rc<RefCell<Directory>> {
             }
         };
     }
-    top_level_dir.to_owned()
+    top_level_dir
 }
 
 #[test]
