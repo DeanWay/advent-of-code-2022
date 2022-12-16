@@ -1,6 +1,6 @@
 use colored::Colorize;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     io::{stdin, BufRead},
     time::Duration,
 };
@@ -12,6 +12,7 @@ fn main() {
     let input = stdin().lock();
     let height_map = parse_input(input);
     println!("{:?}", solution_1(&height_map));
+    println!("{:?}", solution_2(&height_map));
 }
 
 type HeightMap = Vec<Vec<i32>>;
@@ -43,18 +44,20 @@ fn print_map(height_map: &HeightMap) {
     }
 }
 
-fn print_path(height_map: &HeightMap, path: &Vec<Position>) {
+fn print_path(height_map: &HeightMap, path: &Vec<Position>, visited: &HashMap<Position, usize>) {
     let height = height_map.len();
     let width = height_map[0].len();
-    // std::thread::sleep(Duration::from_millis(5));
-    // print!("{}[2J", 27 as char);
+    std::thread::sleep(Duration::from_millis(16));
+    print!("{}[2J", 27 as char);
     println!();
     for row in 0..height {
         for col in 0..width {
             let current_pos = (row, col);
             let val = format!("{:0desired_len$}", height_map[row][col], desired_len = 2);
             if path.contains(&current_pos) {
-                print!("{} ", val.green());
+                print!("{} ", val.red());
+            } else if visited.contains_key(&current_pos) {
+                print!("{} ", val.bright_green());
             } else {
                 print!("{} ", val);
             }
@@ -77,24 +80,56 @@ fn find_in_height_map(height_map: &HeightMap, val: i32) -> Option<Position> {
     None
 }
 
+fn find_all_in_height_map(height_map: &HeightMap, val: i32) -> Vec<Position> {
+    let height = height_map.len();
+    let width = height_map[0].len();
+    let mut res = Vec::new();
+    for r in 0..height {
+        for c in 0..width {
+            if height_map[r][c] == val {
+                res.push((r, c))
+            }
+        }
+    }
+    res
+}
+
 fn solution_1(height_map: &HeightMap) -> Option<Vec<usize>> {
     let start_pos = find_in_height_map(height_map, START_VAL)?;
     let end_pos = find_in_height_map(height_map, END_VAL)?;
     let res = find_paths(height_map, &start_pos, &end_pos)
         .iter()
-        .map(|path| path.len())
+        .map(|path| {
+            print_path(height_map, &path, &HashMap::new());
+            path.len() - 1
+        })
         .collect();
     Some(res)
 }
 
+fn solution_2(height_map: &HeightMap) -> Option<usize> {
+    let starting_points = find_all_in_height_map(height_map, 1);
+    let end_pos = find_in_height_map(height_map, END_VAL)?;
+
+    starting_points
+        .iter()
+        .map(|start_pos| find_paths(height_map, &start_pos, &end_pos))
+        .flatten()
+        .map(|path| {
+            print_path(height_map, &path, &HashMap::new());
+            path.len() - 1
+        })
+        .min()
+}
+
 fn find_paths(height_map: &HeightMap, start: &Position, end: &Position) -> Vec<Vec<Position>> {
-    let mut queue = Vec::new();
+    let mut queue = VecDeque::new();
     let mut all_paths = Vec::new();
     let mut shortest_paths: HashMap<Position, usize> = HashMap::new();
-    queue.push(vec![start.clone()]);
+    queue.push_back(vec![start.clone()]);
     while !queue.is_empty() {
-        let current_path = queue.pop().unwrap();
-        // print_path(height_map, &current_path);
+        let current_path = queue.pop_front().unwrap();
+        // print_path(height_map, &current_path, &shortest_paths);
         let current_pos = current_path.last().unwrap();
         for neighbor in adjacent_postions(height_map, &current_pos)
             .iter()
@@ -115,12 +150,10 @@ fn find_paths(height_map: &HeightMap, start: &Position, end: &Position) -> Vec<V
             let mut path = current_path.clone();
             path.push(neighbor);
             if neighbor == *end {
-                print_path(height_map, &current_path);
                 all_paths.push(path);
             } else {
-                queue.push(path)
+                queue.push_back(path)
             }
-            queue.sort_by(|a, b| b.len().cmp(&a.len()))
         }
     }
     all_paths
